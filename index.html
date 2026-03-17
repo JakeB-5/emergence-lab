@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Emergence Lab</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <h1>🧬 Emergence Lab</h1>
+      <p class="subtitle">Interactive Emergent Intelligence Playground</p>
+    </header>
+    <nav id="sim-selector"></nav>
+    <main id="main">
+      <div id="canvas-container">
+        <canvas id="simulation-canvas"></canvas>
+        <div id="fps-counter"></div>
+      </div>
+      <aside id="sidebar">
+        <section id="controls-panel">
+          <h2>Parameters</h2>
+          <div id="controls"></div>
+          <div id="control-buttons">
+            <button id="btn-reset">Reset</button>
+            <button id="btn-pause">Pause</button>
+          </div>
+        </section>
+        <section id="metrics-panel">
+          <h2>Metrics</h2>
+          <div id="metrics"></div>
+        </section>
+        <section id="info-panel">
+          <h2>About</h2>
+          <p id="sim-description"></p>
+        </section>
+      </aside>
+    </main>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

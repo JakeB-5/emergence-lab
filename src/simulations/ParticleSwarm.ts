@@ -129,6 +129,10 @@ export class ParticleSwarm implements Simulation {
   private landscapeWidth = 0;
   private landscapeHeight = 0;
 
+  // Offscreen canvas holding the landscape pixels for HiDPI-safe drawImage blit
+  private landscapeOffscreen: HTMLCanvasElement | null = null;
+  private landscapeOffscreenCtx: CanvasRenderingContext2D | null = null;
+
   // Pulsing gBest animation
   private pulsePhase = 0;
 
@@ -155,6 +159,8 @@ export class ParticleSwarm implements Simulation {
 
   destroy(): void {
     this.landscapeImageData = null;
+    this.landscapeOffscreen = null;
+    this.landscapeOffscreenCtx = null;
     this.particles = [];
   }
 
@@ -253,9 +259,10 @@ export class ParticleSwarm implements Simulation {
       this.buildLandscape(width, height);
     }
 
-    // 1. Draw fitness landscape
-    if (this.landscapeImageData) {
-      ctx.putImageData(this.landscapeImageData, 0, 0);
+    // 1. Draw fitness landscape.
+    // drawImage respects the DPR transform on ctx, so HiDPI is handled correctly.
+    if (this.landscapeOffscreen) {
+      ctx.drawImage(this.landscapeOffscreen, 0, 0, width, height);
     } else {
       ctx.fillStyle = '#0a0020';
       ctx.fillRect(0, 0, width, height);
@@ -283,12 +290,13 @@ export class ParticleSwarm implements Simulation {
     let totalFitness = 0;
 
     for (const p of this.particles) {
-      const r1 = Math.random();
-      const r2 = Math.random();
+      // Independent random coefficients per dimension for proper PSO stochasticity
+      const r1x = Math.random(), r1y = Math.random();
+      const r2x = Math.random(), r2y = Math.random();
 
       // Velocity update (PSO standard equation)
-      p.vx = w * p.vx + c1 * r1 * (p.pBestX - p.x) + c2 * r2 * (this.gBestX - p.x);
-      p.vy = w * p.vy + c1 * r1 * (p.pBestY - p.y) + c2 * r2 * (this.gBestY - p.y);
+      p.vx = w * p.vx + c1 * r1x * (p.pBestX - p.x) + c2 * r2x * (this.gBestX - p.x);
+      p.vy = w * p.vy + c1 * r1y * (p.pBestY - p.y) + c2 * r2y * (this.gBestY - p.y);
 
       // Velocity clamping
       const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
@@ -345,28 +353,28 @@ export class ParticleSwarm implements Simulation {
 
   private renderTrails(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    ctx.lineWidth = 1;
 
     for (const p of this.particles) {
       if (p.trailCount < 2) continue;
 
-      ctx.beginPath();
-      // Walk the ring buffer from oldest to newest
-      let started = false;
-      for (let i = 0; i < p.trailCount; i++) {
-        const bufIdx = (p.trailHead - (p.trailCount - 1) + i + TRAIL_LENGTH) % TRAIL_LENGTH;
-        const tx = p.trailX[bufIdx];
-        const ty = p.trailY[bufIdx];
-        const alpha = (i + 1) / p.trailCount; // fade in toward recent
+      // Stroke each segment individually so strokeStyle per-segment alpha is applied.
+      // Setting strokeStyle inside a single path has no per-segment effect — only the
+      // last assigned value would apply when stroke() is finally called.
+      for (let i = 1; i < p.trailCount; i++) {
+        const prevBufIdx = (p.trailHead - (p.trailCount - 1) + (i - 1) + TRAIL_LENGTH) % TRAIL_LENGTH;
+        const currBufIdx = (p.trailHead - (p.trailCount - 1) + i + TRAIL_LENGTH) % TRAIL_LENGTH;
+        const prevX = p.trailX[prevBufIdx];
+        const prevY = p.trailY[prevBufIdx];
+        const currX = p.trailX[currBufIdx];
+        const currY = p.trailY[currBufIdx];
+        const alpha = i / p.trailCount; // fade in toward recent
+        ctx.beginPath();
         ctx.strokeStyle = `rgba(100, 180, 255, ${(alpha * 0.4).toFixed(3)})`;
-        if (!started) {
-          ctx.moveTo(tx, ty);
-          started = true;
-        } else {
-          ctx.lineTo(tx, ty);
-        }
+        ctx.lineWidth = 1;
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(currX, currY);
+        ctx.stroke();
       }
-      ctx.stroke();
     }
 
     ctx.restore();
@@ -495,6 +503,17 @@ export class ParticleSwarm implements Simulation {
     this.landscapeImageData = imgData;
     this.landscapeWidth = width;
     this.landscapeHeight = height;
+
+    // Blit the ImageData to an offscreen canvas so render() can use drawImage,
+    // which respects the DPR transform and fills the full HiDPI buffer.
+    const offscreen = document.createElement('canvas');
+    offscreen.width = width;
+    offscreen.height = height;
+    const octx = offscreen.getContext('2d');
+    if (!octx) throw new Error('Failed to get offscreen 2D context for landscape');
+    octx.putImageData(imgData, 0, 0);
+    this.landscapeOffscreen = offscreen;
+    this.landscapeOffscreenCtx = octx;
   }
 
   private spawnParticles(): void {

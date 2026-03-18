@@ -83,7 +83,9 @@ class Boids implements Simulation {
     }
   }
 
-  update(_dt: number): void {
+  update(dt: number): void {
+    // dt is already in seconds from main loop; clamp to prevent physics explosion
+    const safeDt = Math.min(dt, 0.05);
     const n           = this.count;
     const vRange      = this.visualRange;
     const minSep      = this.minSep;
@@ -211,10 +213,11 @@ class Boids implements Simulation {
       hist[bucket]++;
     }
 
-    // Integrate positions
+    // Integrate positions — scale by dt to maintain frame-rate independence
+    // Multiply by 60 to preserve same visual speed as original 60fps assumption
     for (let i = 0; i < n; i++) {
-      x[i] += vx[i];
-      y[i] += vy[i];
+      x[i] += vx[i] * safeDt * 60;
+      y[i] += vy[i] * safeDt * 60;
 
       // Hard clamp (fallback if boid escapes margin logic)
       if (x[i] < 0)  x[i] = 0;
@@ -316,25 +319,33 @@ class Boids implements Simulation {
       const spd = Math.sqrt(bvx * bvx + bvy * bvy);
       const lightness = 45 + (spd / this.maxSpeed) * 25;
 
-      ctx.fillStyle    = `hsl(${hue | 0}, 90%, ${lightness | 0}%)`;
+      const hslColor   = `hsl(${hue | 0}, 90%, ${lightness | 0}%)`;
       ctx.strokeStyle  = `hsla(${hue | 0}, 100%, 80%, 0.6)`;
       ctx.lineWidth    = 0.5;
 
-      // Draw triangle pointing in velocity direction
+      // Compute triangle vertices directly — no save()/restore() per boid
       const size = 5;
-      ctx.save();
-      ctx.translate(bx, by);
-      ctx.rotate(angle);
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
 
+      // tip (front)
+      const x1 = bx + cos * size * 1.6;
+      const y1 = by + sin * size * 1.6;
+      // left base vertex
+      const x2 = bx - cos * size * 0.8 - sin * size * 0.7;
+      const y2 = by - sin * size * 0.8 + cos * size * 0.7;
+      // right base vertex
+      const x3 = bx - cos * size * 0.8 + sin * size * 0.7;
+      const y3 = by - sin * size * 0.8 - cos * size * 0.7;
+
+      ctx.fillStyle = hslColor;
       ctx.beginPath();
-      ctx.moveTo( size * 1.6, 0);       // tip
-      ctx.lineTo(-size * 0.8,  size * 0.7); // left
-      ctx.lineTo(-size * 0.8, -size * 0.7); // right
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x3, y3);
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
-
-      ctx.restore();
     }
   }
 

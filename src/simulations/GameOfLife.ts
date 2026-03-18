@@ -41,6 +41,10 @@ export class GameOfLife implements Simulation {
   private imageData!: ImageData;
   private pixels!: Uint32Array;
 
+  // Offscreen canvas used to blit the ImageData via drawImage (HiDPI-safe)
+  private offscreen!: HTMLCanvasElement;
+  private offscreenCtx!: CanvasRenderingContext2D;
+
   // Timing
   private accumulator = 0;
   private secondsPerGen = 1 / 10;
@@ -73,11 +77,22 @@ export class GameOfLife implements Simulation {
     this.next = new Uint8Array(this.totalCells);
     this.ages = new Uint16Array(this.totalCells);
 
-    // ImageData covers the full canvas (cols*cellSize x rows*cellSize may be
-    // slightly smaller than the canvas — we'll clear the canvas first)
-    this.imageData = new ImageData(this.cols * this.cellSize, this.rows * this.cellSize);
+    // ImageData covers the grid area at logical pixel dimensions.
+    // We render it to an offscreen canvas and then use drawImage() to blit to
+    // the main canvas — drawImage respects the DPR transform, so HiDPI works.
+    const imgW = this.cols * this.cellSize;
+    const imgH = this.rows * this.cellSize;
+    this.imageData = new ImageData(imgW, imgH);
     // Uint32Array view so we can write RGBA as a single integer per pixel
     this.pixels = new Uint32Array(this.imageData.data.buffer);
+
+    // Create (or reuse) the offscreen canvas at the logical grid size
+    this.offscreen = document.createElement('canvas');
+    this.offscreen.width = imgW;
+    this.offscreen.height = imgH;
+    const octx = this.offscreen.getContext('2d');
+    if (!octx) throw new Error('Failed to get offscreen 2D context');
+    this.offscreenCtx = octx;
 
     this.randomize();
     this.accumulator = 0;
@@ -95,7 +110,11 @@ export class GameOfLife implements Simulation {
   }
 
   destroy(): void {
-    // Nothing to tear down — GC will handle typed arrays
+    this.current = null!;
+    this.next = null!;
+    this.ages = null!;
+    this.imageData = null!;
+    this.pixels = null!;
   }
 
   // -------------------------------------------------------------------------
@@ -180,10 +199,14 @@ export class GameOfLife implements Simulation {
 
     this.buildImageData();
 
-    // Clear the full canvas with the background colour, then blit the grid
+    // Flush pixel data to the offscreen canvas
+    this.offscreenCtx.putImageData(this.imageData, 0, 0);
+
+    // Clear the full canvas with the background colour, then blit the grid.
+    // drawImage respects the DPR transform applied to ctx, so HiDPI is correct.
     ctx.fillStyle = '#050810';
     ctx.fillRect(0, 0, width, height);
-    ctx.putImageData(this.imageData, 0, 0);
+    ctx.drawImage(this.offscreen, 0, 0, width, height);
   }
 
   // -------------------------------------------------------------------------

@@ -7,6 +7,9 @@ export class SpatialHash {
   private invCellSize: number;
   // Map from hashed cell key to array of entity ids
   private cells: Map<number, number[]>;
+  // Pre-allocated result buffer — reused across query() calls to reduce GC pressure.
+  // WARNING: The returned array is shared; consume all values before the next query() call.
+  private resultBuffer: number[] = [];
 
   constructor(cellSize: number) {
     this.cellSize = cellSize;
@@ -45,13 +48,20 @@ export class SpatialHash {
    * Query all entity ids within radius of (x, y).
    * Checks all cells overlapped by the bounding box of the circle.
    */
+  /**
+   * Query all entity ids within radius of (x, y).
+   * Checks all cells overlapped by the bounding box of the circle.
+   *
+   * IMPORTANT: Returns the shared resultBuffer. The caller must consume
+   * all values before issuing another query() call, as the buffer is reset
+   * on each invocation.
+   */
   query(x: number, y: number, radius: number): number[] {
-    const result: number[] = [];
+    this.resultBuffer.length = 0;  // Reset without deallocation
     const minCx = this.toCellCoord(x - radius);
     const maxCx = this.toCellCoord(x + radius);
     const minCy = this.toCellCoord(y - radius);
     const maxCy = this.toCellCoord(y + radius);
-    const rSq = radius * radius;
 
     for (let cx = minCx; cx <= maxCx; cx++) {
       for (let cy = minCy; cy <= maxCy; cy++) {
@@ -59,17 +69,12 @@ export class SpatialHash {
         const cell = this.cells.get(key);
         if (cell === undefined) continue;
         for (let i = 0; i < cell.length; i++) {
-          result.push(cell[i]);
+          this.resultBuffer.push(cell[i]);
         }
       }
     }
 
-    // Note: callers receive candidate ids; exact distance filtering
-    // is intentionally left to the caller for flexibility.
-    // However we provide rSq for reference if needed.
-    void rSq;
-
-    return result;
+    return this.resultBuffer;
   }
 
   /**

@@ -9,7 +9,7 @@ export class CanvasRenderer {
   width: number = 0;
   height: number = 0;
 
-  private dpr: number;
+  private _dpr: number;
   private resizeObserver: ResizeObserver;
 
   constructor(canvas: HTMLCanvasElement) {
@@ -20,7 +20,7 @@ export class CanvasRenderer {
       throw new Error('Failed to get 2D rendering context');
     }
     this.ctx = ctx;
-    this.dpr = window.devicePixelRatio || 1;
+    this._dpr = window.devicePixelRatio || 1;
 
     // Observe the canvas container for size changes
     const container = canvas.parentElement;
@@ -36,12 +36,17 @@ export class CanvasRenderer {
     this.resize();
   }
 
+  /** Device pixel ratio — used by simulations that write ImageData directly. */
+  get dpr(): number {
+    return this._dpr;
+  }
+
   /** Handle resize, maintain pixel ratio for HiDPI displays */
   resize(): void {
     const container = this.canvas.parentElement;
     if (!container) return;
 
-    this.dpr = window.devicePixelRatio || 1;
+    this._dpr = window.devicePixelRatio || 1;
 
     // Use container's CSS dimensions as the logical size
     const rect = container.getBoundingClientRect();
@@ -49,15 +54,15 @@ export class CanvasRenderer {
     const displayHeight = Math.floor(rect.height);
 
     // Set the canvas buffer size (scaled for HiDPI)
-    this.canvas.width = displayWidth * this.dpr;
-    this.canvas.height = displayHeight * this.dpr;
+    this.canvas.width = displayWidth * this._dpr;
+    this.canvas.height = displayHeight * this._dpr;
 
     // Set the CSS display size
     this.canvas.style.width = `${displayWidth}px`;
     this.canvas.style.height = `${displayHeight}px`;
 
     // Scale the context so drawing operations use CSS pixels
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.ctx.setTransform(this._dpr, 0, 0, this._dpr, 0, 0);
 
     // Store logical (CSS pixel) dimensions
     this.width = displayWidth;
@@ -77,6 +82,15 @@ export class CanvasRenderer {
   /** Get current logical dimensions */
   getDimensions(): { width: number; height: number } {
     return { width: this.width, height: this.height };
+  }
+
+  /**
+   * Get physical (backing-store) buffer dimensions.
+   * Use these when writing ImageData directly via putImageData, which
+   * ignores canvas transforms and always addresses physical pixels.
+   */
+  getPhysicalDimensions(): { width: number; height: number } {
+    return { width: this.width * this._dpr, height: this.height * this._dpr };
   }
 
   /** Clean up observer */

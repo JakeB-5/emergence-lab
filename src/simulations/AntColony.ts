@@ -114,7 +114,7 @@ class AntColony implements Simulation {
 
   private _placeFoodSources(): void {
     this.foodSources = [];
-    const count = 2 + Math.floor(Math.random());  // 2–3 clusters
+    const count = 2 + Math.floor(Math.random() * 2);  // 2–3 clusters
     const margin = 80;
     const cx = this.width  * 0.5;
     const cy = this.height * 0.5;
@@ -522,6 +522,11 @@ class AntColony implements Simulation {
     this.avy = new Float64Array(0);
     this.aState = new Uint8Array(0);
     this.foodSources = [];
+    // Release offscreen canvas references to allow GC
+    this.offscreen = null!;
+    this.offCtx = null!;
+    this.imageData = null!;
+    this.pixels = null!;
   }
 }
 

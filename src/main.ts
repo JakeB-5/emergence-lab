@@ -134,8 +134,6 @@ if (btnReset) {
     if (!activeSim) return;
 
     activeSim.reset();
-    const { width, height } = renderer.getDimensions();
-    activeSim.init(width, height);
 
     // Refresh controls to default values
     controls.setParams(activeSim.meta.params);
@@ -162,7 +160,6 @@ window.addEventListener('resize', () => {
   resizeTimeout = setTimeout(() => {
     if (activeSim) {
       const { width, height } = renderer.getDimensions();
-      activeSim.destroy();
       activeSim.init(width, height);
     }
   }, 200);
